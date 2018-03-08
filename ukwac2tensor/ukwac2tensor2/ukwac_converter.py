@@ -333,7 +333,7 @@ class UkwacTools:
         """
         govs = []
         for i in range(len(sent[0][1])):
-            govs.append(tuple([s[0] for s in sent if 'S-V' in s[1][i]]))
+            govs.append(tuple([s[0] for s in sent if 'S-V' in s[1][i] or 'B-V' in s[1][i]]))
         return govs
 
     @staticmethod
