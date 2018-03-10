@@ -854,15 +854,20 @@ def head_searcher(args):
                         for g in pred.iter('governor')]
                 for dep in pred.iter('dep'):
                     if dep.attrib['type'] in 'V':
-                        continue
-                    tup_arg = tuple([tuple(t.lower().rsplit('/', 2))
-                                     for t in dep.text.split()])
-                    # starting head search
-                    head = alg_controller(tup_arg, remapped,
-                                          dep.attrib['type'],
-                                          govs)
-                    dep.text = head[0]
-                    dep.set('algorithm', head[-1])
+                        # TOTEST: a hack for handling multi-word predicates
+                        list_arg = [tuple(t.lower().rsplit('/', 2))
+                                         for t in dep.text.split()]
+                        head = list_arg[0]
+                        dep.text = '/'.join(h for h in head)
+                    else:
+                        tup_arg = tuple([tuple(t.lower().rsplit('/', 2))
+                                         for t in dep.text.split()])
+                        # starting head search
+                        head = alg_controller(tup_arg, remapped,
+                                              dep.attrib['type'],
+                                              govs)
+                        dep.text = head[0]
+                        dep.set('algorithm', head[-1])
             # removing <rawsent> and <lemsent>
             rawsent = etr.find('rawsent')
             if rawsent is not None:
