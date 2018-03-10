@@ -50,6 +50,7 @@ from socket import gethostname
 from itertools import izip
 from collections import deque, defaultdict, OrderedDict as od
 
+from ukwac_converter import UkwacTools
 
 __author__ = "p.shkadzko@gmail.com"
 
@@ -604,18 +605,17 @@ def extract_conll_data(data):
            data extracted from conll file
 
     """
-    id_index = ConllTools.index_text_ids(data)
-    rtext = re.compile(r'</?text>?')
-    rlabel = re.compile(r'(</?s>)')
-    cdata = rtext.sub('', clean_data)
-    lcdata = rlabel.sub(r'\1 <S>', cdata)
-    lines = [l for l in lcdata.split('\n')]
+    clean_data = UkwacTools.clean_bad_chars(data)
+    id_index = UkwacTools.index_text_ids(clean_data)
+
+    lines = [l for l in clean_data.split('\n') if l != '']
     chunks = [tuple(l.split()[0:2]) for l in lines if len(l.split()) > 1]
     pairs = tuple(chunks)
     dict_lemmas = dict(pairs)
     sents = ' '.join([w[0] for w in pairs])
     norm_sents = ConllTools.insert_sent_delims(ConllTools.reduce_contr(sents))
-    return norm_sents, dict_lemmas, id_index, ConllTools.include_malt(lines)
+    return norm_sents, dict_lemmas, id_index
+    # return norm_sents, dict_lemmas, id_index, ConllTools.include_malt(lines)
 
 
 def build_xml(lemmas, id_idx, result_fname, malt_data, pverbs):
@@ -797,6 +797,115 @@ def conll_convert(args):
         print 'done\n'
 
 
+
+def conll2xml(lemmas, id_idx, input_fname, result_fname, pverbs): 
+    """
+    Read output file and build its xml representation.
+
+    Args:
+        | *lemmas* (dict) -- dict of word -> word lemma: ``{'shops': 'shop'}``
+        | *id_idx* (OrderedDict) -- an ordered dict of url string and a number
+           of sentences that belong to it
+        | *result_fname* (str) -- final result file name
+        | *pverbs* (bool) -- if True, find and add verb phrases
+
+    """
+    os.chdir(os.path.dirname(result_fname))  # cd into parent dir
+    # for outfile in senna.get_output_files():
+
+    with open(input_fname, 'r') as f:
+        fdata = f.read()
+    # removing whitespace from OUTPUT_FILE data
+    cdata = re.sub(r' ', '', fdata).split('\n\n')
+    # iterating through sentences extracted from OUTPUT_FILE
+    sent_cnt = 0
+    abs_sent_cnt = 1
+    for sent_chunk in cdata:
+        if not sent_chunk: break
+        lines = tuple([tuple(l.split('\t')) for l in
+                       sent_chunk.split('\n')])
+        # creating word tuples for xml insertion
+        for t in lines:
+            # in case conll and SENNA splitting difference
+            try:
+                lemmas[t[0]]
+            except KeyError:
+                lemmas.setdefault(t[0], t[0])
+        # TODO: 
+        """We received lemmas dict from extract_conll_data() and now
+            get lemmas from it and replacing the original words"""
+        sent = [(''.join([lemmas[t[0]], "/", t[1]]), t[1:-1])
+                for t in lines]
+        rawsent = ' '.join([t[0] for t in lines])  # for Ottokar
+        rawsent_idx = [i for i in enumerate(rawsent.split(), 1)]
+        # we need a new index because SENNA may split some sents in two
+        if sent[0][0] == '``/``':
+            abs_sent_cnt += 1
+            continue
+        if not sent[0][1]: continue
+        # creating sentence xml representation
+        # inserting text_ids
+        if id_idx:
+            if sent_cnt == 0:
+                textid = et.Element("text")
+                textid.set("id", next(iter(id_idx)))
+                ConllTools.append_to_xml(result_fname, textid)
+                sent_cnt -= id_idx[next(iter(id_idx))]
+                id_idx.popitem(last=False)
+        root = et.Element("s")
+
+        # sent_text = et.SubElement(root, "sent")
+        rawsent_text = et.SubElement(root, "rawsent")
+        lemmsent_text = et.SubElement(root, "lemsent")
+
+        # sent_text.text = ' '.join([i[0].rsplit('/', 1)[0]
+        #                           for i in sent]).lower()
+        # for Ottokar, remove the line below and uncomment the line above
+        rawsent_text.text = rawsent
+        lemmsent_text.text = ' '.join([i[0].rsplit('/', 1)[0]
+                                       for i in sent]).lower()
+        
+        # merge XP+POS into POS, if POS detected in the argument
+        if filter(lambda x: re.match(r'.*/POS$', x[0]), sent):
+            sent = ConllTools.merge_POS(sent)
+        # adding position index for words
+        sent = [(''.join([w[1][0], '/', str(w[0])]),
+                 w[1][1]) for w in enumerate(sent, 1)]
+        # check if rawsent idx and senna idx are the same
+        equal = True
+        for i, t in izip(rawsent_idx, sent):
+            idx0 = int(i[0])
+            idx1 = int(t[0].rsplit('/', 2)[2])
+            if idx0 != idx1:
+                equal = False
+        if not equal:
+            continue
+        # retrieving and creating governor nodes
+        idx = 0
+        for governor in ConllTools.get_governors(sent, sent_chunk):
+            if not governor: idx += 1; continue  # skipping non-gov columns
+            pred = et.SubElement(root, "predicate")
+            gov = et.SubElement(pred, "governor")
+            gov.text = governor[0]
+            deps = et.SubElement(pred, "dependencies")
+            dep_dic = ConllTools.get_dependants(sent, idx, sent_chunk)
+            idx += 1
+            for d in dep_dic:
+                dep = et.SubElement(deps, "dep")
+                dep.set("type", d.keys()[0])
+                dep.text = d.values()[0]
+
+        # add vps if set
+        if pverbs:
+            root = ConllTools.add_vps(root)
+
+        # appending formatted xml to the file
+        ConllTools.append_to_xml(result_fname, root)
+        sent_cnt += 1
+    ConllTools.gzip_xml(result_fname)
+
+
+
 def get_contractions():
     """Return special contractions dict."""
     contr = {
@@ -934,14 +1043,21 @@ if __name__ == '__main__':
         exit(0)
 
     filename = args.file
-    conll_fname_path = os.path.join(filename)
-    result_fname = os.path.join(os.getcwd(), conll_fname)
+    conll_fname = os.path.join(filename)
+    result_fname = os.path.join(os.getcwd(), conll_fname + '_result.txt')
 
-    print 'reading %s...' % filename
-    fdata = ConllTools.gzip_reader(conll_fname_path)
+    # print 'reading %s...' % filename
+    # fdata = ConllTools.gzip_reader(conll_fname)
+    # print 'extracting sentences...'
+    # sents, word_lemma, id_index, malt_dic = extract_conll_data(fdata)
+    # print 'creating xml...'
+    # build_xml(word_lemma, id_index, result_fname, malt_dic, args.pverbs)
+
+    with open(conll_fname, 'r') as f:
+        fdata = f.read()
+
     print 'extracting sentences...'
-    sents, word_lemma, id_index, malt_dic = extract_conll_data(fdata)
+    sents, word_lemma, id_index = extract_conll_data(fdata)
 
-    print 'creating xml...'
-    build_xml(word_lemma, id_index, result_fname, malt_dic, args.pverbs)
-
+    print 'converting conll to xml...'
+    conll2xml(word_lemma, id_index, conll_fname, result_fname, args.pverbs)
