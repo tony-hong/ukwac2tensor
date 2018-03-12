@@ -282,13 +282,20 @@ def syntaxnet2malt(file):
     print 'constructing new sentences ...'
     new_data = []
     imgId = 0
+    sent_cnt = 0
+    isFirst = True
     for sentence in df:
         # sentence = df[0]
         new_sent = ''
         if sentence.ndim == 1:
             assert sentence[2] == '_'
             imgId = sentence[1]
-            new_sent += '<text id="' + imgId + '" />\n'
+            sent_cnt += 1
+            if not isFirst:
+                new_sent += '</text>\n'
+            else: 
+                isFirst = False
+            new_sent += '<text id="' + imgId + '">\n'
         else:
             new_sent += '<s>\n'
             for line in sentence:
@@ -317,18 +324,19 @@ def syntaxnet2malt(file):
 
                 new_sent += new_line + '\n'
             new_sent += '</s>\n'
-
+        
         # print new_sent
         new_data.append(new_sent)
         # DEBUG block
         # if len(new_data) > 50:
         #     break
+    new_data.append('</text>\n')
 
     # output_str = '<text>\n'
     output_str = ''
     for sent in new_data:
         output_str += sent
-
+        
     # print output_str
     return output_str
 
