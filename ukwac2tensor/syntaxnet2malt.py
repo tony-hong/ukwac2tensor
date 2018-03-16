@@ -371,20 +371,27 @@ if __name__ == '__main__':
                      required=False)
     args = prs.parse_args()
 
-    input_file = os.path.join(args.dir, args.file)
-    if args.out:
-        output_file = os.path.join(args.dir, args.out)
-    else:
-        output_file = input_file.strip('txt') + '_result.xml'
+    # input_file = os.path.join(args.dir, args.file)
+    # if args.out:
+    #     output_file = os.path.join(args.dir, args.out)
+    # else:
+    #     output_file = input_file.strip('txt') + '_result.xml'
 
     # filename = args.file
 
     # SICK_parsed_PATH = os.path.join(SRC_DIR, "/SICK_parsed")
     # all_files = [f for _, _, f in os.walk(SICK_parsed_PATH)]
-    
-    with open(input_file, 'r') as f_in, \
-        open(output_file, 'w') as f_out:
-        result = syntaxnet2malt(f_in)
-        f_out.write(result)
 
+    input_files = os.listdir(args.dir)
+    # input_files.remove('.DS_Store')
 
+    for input_file in input_files:
+        output_file = input_file.strip('_parsed.conll')
+        output_file += '_malt.xml'
+        print input_file, output_file
+        input_path = os.path.join(args.dir, input_file)
+        output_path = os.path.join(args.dir, output_file)
+        with open(input_path, 'r') as f_in, \
+            open(output_path, 'w') as f_out:
+            result = syntaxnet2malt(f_in)
+            f_out.write(result)
