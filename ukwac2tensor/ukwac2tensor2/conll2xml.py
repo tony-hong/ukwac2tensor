@@ -11,7 +11,7 @@ import argparse
 import cPickle
 from collections import OrderedDict as od
 from itertools import izip_longest
-import xml.etree.cElementTree as ET
+import xml.etree.cElementTree as et
 import xml.dom.minidom as mdom
 
 import numpy as np
@@ -88,7 +88,98 @@ class CoNLLTools:
         return fdata
 
 
-    def extract_dataframe(self, conll_data):
+    @staticmethod
+    def gzip_xml(fname):
+        """
+        Read and compress specified file, remove original file.
+
+        Args:
+            *fname* (str) -- file name
+
+        """
+        with open(fname, 'r') as f:
+            fdata = f.read()
+        with gzip.open(fname + '.gz', 'w') as gf:
+            gf.write(fdata)
+            os.remove(fname)
+        print fname + '.gz successfully archived'
+
+
+    @staticmethod
+    def append_to_xml(fname, root):
+        """
+        Create xml file header, prettify xml structure and write xml
+        representation of the sentences using ``\\r\\n`` as a separator.
+
+        <IMPORTANT! Take into account that output file shall contain sentences
+        separated by ``\\r\\n``. Head searching will not work otherwise. This
+        is an ugly hack for ``<text id></text>`` tags to contain correct
+        sentences.>
+
+        Args:
+            | *fname* (str) -- file name to write the data to
+            | *root* (xml.etree object) -- xml.etree root object
+
+        """
+        rxml_header = re.compile(r'<\?xml version="1.0" \?>')
+        ugly = et.tostring(root, 'utf-8', method='xml')
+        parsed_xml = mdom.parseString(ugly)
+        nice_xml = parsed_xml.toprettyxml(indent=" " * 3)
+        even_more_nice_xml = rxml_header.sub('', nice_xml)
+        with open(fname, 'a') as f:
+            f.write(even_more_nice_xml)
+            f.write('\r\n')  # delimiter required by head_searcher
+
+
+    @staticmethod
+    def get_dependants(sent, prd_id):
+        """
+        Retrieve roles for a given governor.
+
+        Args:
+            | *sent* (list) -- a list of word, POS-tag, word index and role
+            |  tuples:
+                ``[('first/JJ/3', ('I-A1',)), ('album/NN/4', ('E-A1',))]``
+            | *prd_id* (int) -- index to access correct ukwac column
+
+        Returns:
+            | *role_bag* (list) -- a list of dicts where dep role is key and
+               words, POS-tags, word indeces are values:
+                ``[{'V': 'justify/VB/20'},
+                  {'A1': 'a/DT/21 full/JJ/22 enquiry/NN/23'}]``
+
+        """
+        # rarg = re.compile(r'(?![O])[A-Z0-9\-]+')
+        # in case of bad parsing
+        try:
+            # dep_roles = [(rarg.match(d[1][prd_id]).group(), d[0]) for d in sent
+            #              if rarg.match(d[1][prd_id])]
+            dep_roles = [(d[1][prd_id], d[0]) for d in sent
+                         if d[1][prd_id]]
+        except:
+            dep_roles = [('', 0)]
+        role_bag = []
+        role_chunk = ()
+        for i in iter(dep_roles):
+            if re.match(r'\(.*\*', i[0]):
+                role = re.findall(r"\((.*)\*", i[0])[0]
+                role_chunk = (i[1],)
+                continue
+            elif i[0] == '*':
+                role_chunk += (i[1],)
+                continue
+            elif i[0] == '*)':
+                role_chunk += (i[1],)
+                role_bag.append({role : ' '.join(role_chunk)})
+                continue
+            else:
+                role_bag.append({role : i[1]})
+                continue
+        # print role_bag
+        return role_bag
+
+
+    def extract_dataframe(self, conll_data, toLower=False):
         """
         Extract columns from conll files, create an ordered dict of
         ("word", "lemma") pairs and construct sentences for SENNA input.
