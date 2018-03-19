@@ -204,6 +204,8 @@ class CoNLLTools:
         first = True
         for dl in data_lines:
             if dl.strip() != "":
+                if toLower:
+                    dl = dl.lower()
                 line = np.array(dl.split())
                 # if len(line) <= self.COL_2_PROPS: 
                 #     continue
@@ -238,18 +240,18 @@ class CoNLLTools:
             assert line[2] == '_'
             idx = line[0]
             token = line[1]
-            pos = line[4]
+            pos = line[4].lower()
             dep = line[6]
-            syntag = line[7].upper()
+            syntag = line[7].lower()
             if not self.is_ascii(token):
                 token = '<UNKNOWN>'
             lower_token = token.lower()
-            lemma = wnl.lemmatize(lower_token, self.penn2wn(pos))
-            line[2] = lemma
+            # lemma = wnl.lemmatize(lower_token, self.penn2wn(pos))
+            line[2] = '_'
 
             new_list = []
             new_list.append(token)
-            new_list.append(lemma)
+            new_list.append('_')
             new_list.append(pos)
             new_list.append(idx)
             new_list.append(dep)
