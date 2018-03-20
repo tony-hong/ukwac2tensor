@@ -269,7 +269,7 @@ class CoNLLTools:
         return new_data
 
 
-    def extract_info(self, dataframe):
+    def extract_info(self, parse_dfs, srl_dfs, result_fname):
         """
         Extract columns from conll files, create an ordered dict of
         ("word", "lemma") pairs and construct sentences for SENNA input.
@@ -289,47 +289,114 @@ class CoNLLTools:
 
         """
         # print (dataframe[0])
-
         result = []
         unique_pairs = {}
-        for sentence in dataframe:
-            # print sentence
-            num_props = len(sentence[0]) - self.COL_2_PROPS
+        prd_cnt = 0
+        text_idx = 0
+        for idx, srl in enumerate(srl_dfs): 
+            # print srl
             
-            tokens = sentence[:,0]
-            
-            # lemmas = []
-            # for i, t in enumerate(tokens, start=0):
-            #     pos = POStags[i]
-            #     lemma = wnl.lemmatize(t, CoNLLTools.penn2wn(pos[0]))
-            #     lemmas.append(lemma)
+            # Read parse 
+            parse = parse_dfs[idx]
+            # print parse.shape
 
+           # Process text id
+            if srl.ndim == 1:
+                text_idx = parse[1]
+                # print text_idx
+                text_e = et.Element("text")
+                text_e.set("id", text_idx)
+                self.append_to_xml(result_fname, text_e)
+                continue
+
+            if len(parse) != len(srl):
+                continue
+
+            # skip clause without PRD
+            num_props = len(srl[0]) - self.COL_2_PROPS
+            if num_props == 0:
+                continue
+            
+            idxs = parse[:,0]
+            tokens = parse[:,1]
+            pos_tags = parse[:,4]
+            deps = parse[:,6]
+            syn_tags = parse[:,7]
+
+            # Read srls
+            predicates = srl[:,0]
+
+            # Process data
+            lemmas = []
+            for i, t in enumerate(tokens, start=0):
+                first = pos_tags[i][0].upper()
+                lemma = wnl.lemmatize(t, CoNLLTools.penn2wn(first))
+                lemmas.append(lemma)
+            mask = predicates != '-'
             prd_list = predicates[mask]
-            # print num_props, len(prd_list)
             assert (num_props == len(prd_list))
             num_tokens = len(tokens)
+            # print lemmas
+            # print predicates
+            # print num_props, len(prd_list)
 
-            ## raw sentence
-            # print (' '.join(tokens))
-            for prd_id, prd in enumerate(prd_list, start=self.COL_2_PROPS):
-                props = sentence[:, prd_id]
-                prd_lemma = wnl.lemmatize(prd.lower(), wn.VERB)
+            # construct text
+            malt_text = self.df2malt(parse)
+            sent_tuples = [(''.join([lemmas[i], "/", pos_tags[i], "/", idxs[i]]), srl[i, self.COL_2_PROPS:])
+                    for i in range(num_tokens)]
+            lemmas_sent = ' '.join([i[0].rsplit('/', 2)[0] for i in sent_tuples]).lower()
+            # raw_sent = ' '.join(tokens)
+            # print sent_tuples
+            # print raw_sent
 
+            root_e = et.Element("s")
+            malt_e = et.SubElement(root_e, "malt")
+            lemmsent_e = et.SubElement(root_e, "lemsent")
+            # rawsent_e = et.SubElement(root_e, "rawsent")
 
-                # print (prd, sentence[:, prd_id])
+            malt_e.text = malt_text
+            lemmsent_e.text = lemmas_sent
+
+            # equal
+
+            # TODO            
+            # retrieving and creating governor nodes
+            for prd_col, prd in enumerate(prd_list, start=self.COL_2_PROPS):
+                props = srl[:, prd_col]
+                prd_token = prd[1:]
+                prd_idx = np.where(tokens==prd_token)[0][0]
+
+                prd_lemma = lemmas[prd_idx]
+
+                pred_e = et.SubElement(root_e, "predicate")
+                gov_e = et.SubElement(pred_e, "governor")
+                deps_e = et.SubElement(pred_e, "dependencies")
+
+                pred_e.set("id", text_idx)
+
+                # print prd_lemma, '/', pos_tags[prd_idx], '/', prd_idx
+
+                gov_e.text = ''.join([prd_lemma, '/', pos_tags[prd_idx], '/', str(prd_idx)])
+
+                dep_dic = self.get_dependants(sent_tuples, prd_col - self.COL_2_PROPS)
+
+                for d in dep_dic:
+                    # print d
+                    dep_e = et.SubElement(deps_e, "dep")
+                    dep_e.set("type", d.keys()[0])
+                    dep_e.text = d.values()[0]
+                
+                prd_cnt += 1
+
+            self.append_to_xml(result_fname, root_e)
+
+        self.gzip_xml(result_fname)
+
+                # print (prd, srl[:, prd_id])
             # print (result)
 
-        plain_output = "\n".join(result)
-
         print ("Stats:")
-        print ("No. of predicates: ", len(unique_pairs.keys()))
-
-        unique_output = ""
-        for p, d in unique_pairs.items():
-            for w, r in d.items():
-                unique_output += str({'V' : p, r : w}) + "\n"
-
-        return plain_output, unique_output
+        print ("No. of predicates: ", prd_cnt)
 
         # dict_lemmas = dict(pairs)
         # sents = ' '.join([w[0] for w in pairs])
@@ -372,6 +439,8 @@ if __name__ == '__main__':
 
     conll_parse_path = os.path.join(args.dir, parse_fn)
     conll_srl_path = os.path.join(args.dir, srl_fn)
+    output_name = parse_fn + 'converted.xml'
+    output_path = os.path.join(args.dir, output_name)
     # plain_xml_fname = '.'.join([os.path.basename(filename.strip('.txt')),
     #                         'srl.conll'])
     ct = CoNLLTools()
@@ -380,20 +449,19 @@ if __name__ == '__main__':
     parse_data = ct.gzip_reader(conll_parse_path)
     srl_data = ct.gzip_reader(conll_srl_path)
     print 'extracting dataframe...'
-    parse_df = ct.extract_dataframe(parse_data)
-    srl_df = ct.extract_dataframe(srl_data)
+    parse_dfs = ct.extract_dataframe(parse_data, toLower=True)
+    srl_dfs = ct.extract_dataframe(srl_data)
 
+    # print srl_df[0].shape
+    # print srl_df[0]
 
-    print srl_df[1].shape
-    print srl_df[1]
+    # print parse_df[0].shape
+    # print parse_df[0]
 
-    print parse_df[1].shape
-    print parse_df[1]
-
-    print ct.df2malt(parse_df[1])
+    # print ct.df2malt(parse_df[1])
     
-    # print 'extracting information...'
-    # plain_output, unique_pairs = ct.extract_info(df)
+    print 'extracting information...'
+    ct.extract_info(parse_dfs, srl_dfs, output_path)
 
     # print 'creating dat...'
     # result_fname = os.path.join(os.getcwd(), plain_xml_fname)
