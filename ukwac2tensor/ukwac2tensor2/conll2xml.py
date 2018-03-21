@@ -292,6 +292,7 @@ class CoNLLTools:
         result = []
         unique_pairs = {}
         prd_cnt = 0
+        sent_cnt = 0
         text_idx = 0
         for idx, srl in enumerate(srl_dfs): 
             # print srl
@@ -385,10 +386,10 @@ class CoNLLTools:
                     dep_e = et.SubElement(deps_e, "dep")
                     dep_e.set("type", d.keys()[0])
                     dep_e.text = d.values()[0]
-                
                 prd_cnt += 1
 
             self.append_to_xml(result_fname, root_e)
+            sent_cnt += 1
 
         self.gzip_xml(result_fname)
 
@@ -397,6 +398,7 @@ class CoNLLTools:
 
         print ("Stats:")
         print ("No. of predicates: ", prd_cnt)
+        print ("No. of sentences: ", sent_cnt)
 
         # dict_lemmas = dict(pairs)
         # sents = ' '.join([w[0] for w in pairs])
@@ -418,58 +420,58 @@ class CoNLLTools:
 
 if __name__ == '__main__':
     prs = argparse.ArgumentParser(description="""
-    This script converts conll format data to dat.
+    This script converts conll format data from dependency parser and semantic role 
+    labeller to xml format converted data.
     """)
-    prs.add_argument('-d', '--dir',
-                     help='Specify directory where conll files are located.',
-                     required=True)
+    # prs.add_argument('-d', '--dir',
+    #                  help='Specify directory where conll files are located.',
+    #                  required=False)
     prs.add_argument('-p', '--parse',
-                     help='Specify conll parsed file to process. ',
+                     help='Specify directory whereconll parsed file are located. ',
                      required=True)
     prs.add_argument('-s', '--srl',
-                     help='Specify conll SRL file to process. ', 
+                     help='Specify directory where conll SRL file are located. ', 
                      required=True)
     prs.add_argument('-o', '--out', default=os.getcwd(),
-                     help='Specify output directory. If not specified current '
+                     help='Specify output directory. If not specified, current '
                           'dir is used.',
                      required=False)
     args = prs.parse_args()
-    parse_fn = args.parse
-    srl_fn = args.srl
 
-    conll_parse_path = os.path.join(args.dir, parse_fn)
-    conll_srl_path = os.path.join(args.dir, srl_fn)
-    output_name = parse_fn + 'converted.xml'
-    output_path = os.path.join(args.dir, output_name)
-    # plain_xml_fname = '.'.join([os.path.basename(filename.strip('.txt')),
-    #                         'srl.conll'])
+    parse_fns = [os.path.join(args.parse, name) for name in os.listdir(args.parse) if re.search(r'conll', name)]
+    srl_fns = [os.path.join(args.srl, name) for name in os.listdir(args.srl) if re.search(r'conll', name)]
+
     ct = CoNLLTools()
 
-    print 'reading ...'
-    parse_data = ct.gzip_reader(conll_parse_path)
-    srl_data = ct.gzip_reader(conll_srl_path)
-    print 'extracting dataframe...'
-    parse_dfs = ct.extract_dataframe(parse_data, toLower=True)
-    srl_dfs = ct.extract_dataframe(srl_data)
+    for i, parse_fn in enumerate(parse_fns):
+        srl_fn = srl_fns[i]
+        output_name = re.findall(r'split/(.*)_parsed', parse_fn)[-1]
+        output_name += '_converted.xml'
+        print output_name
+        output_path = os.path.join(args.out, output_name)
+        print output_path
 
-    # print srl_df[0].shape
-    # print srl_df[0]
+        print 'reading ...'
+        parse_data = ct.gzip_reader(parse_fn)
+        srl_data = ct.gzip_reader(srl_fn)
+        print 'extracting dataframe...'
+        parse_dfs = ct.extract_dataframe(parse_data, toLower=True)
+        srl_dfs = ct.extract_dataframe(srl_data)
 
-    # print parse_df[0].shape
-    # print parse_df[0]
+        print 'extracting information...'
+        ct.extract_info(parse_dfs, srl_dfs, output_path)
 
-    # print ct.df2malt(parse_df[1])
-    
-    print 'extracting information...'
-    ct.extract_info(parse_dfs, srl_dfs, output_path)
-
-    # print 'creating dat...'
-    # result_fname = os.path.join(os.getcwd(), plain_xml_fname)
-    # with open(result_fname, 'w+b') as of:
-    #     of.write(plain_output)
-    # result_fname = os.path.join(os.getcwd(), unique_xml_fname)
-    # with open(result_fname, 'w+b') as of:
-    #     of.write(unique_pairs)
-
-    # sents, word_lemma, id_index, malt_dic = extract_info(df)
-    # build_xml(word_lemma, id_index, result_fname, malt_dic, args.pverbs)
+        # debug
+        # print srl_df[0].shape
+        # print srl_df[0]
+        # print parse_df[0].shape
+        # print parse_df[0]
+        # print ct.df2malt(parse_df[1])
+        
+        # print 'creating dat...'
+        # result_fname = os.path.join(os.getcwd(), plain_xml_fname)
+        # with open(result_fname, 'w+b') as of:
+        #     of.write(plain_output)
+        # result_fname = os.path.join(os.getcwd(), unique_xml_fname)
+        # with open(result_fname, 'w+b') as of:
+        #     of.write(unique_pairs)
