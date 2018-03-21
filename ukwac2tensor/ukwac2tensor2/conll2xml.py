@@ -422,6 +422,8 @@ if __name__ == '__main__':
     prs = argparse.ArgumentParser(description="""
     This script converts conll format data from dependency parser and semantic role 
     labeller to xml format converted data.
+
+    Parsed and SRL files must pair up correctly. 
     """)
     # prs.add_argument('-d', '--dir',
     #                  help='Specify directory where conll files are located.',
@@ -440,16 +442,19 @@ if __name__ == '__main__':
 
     parse_fns = [os.path.join(args.parse, name) for name in os.listdir(args.parse) if re.search(r'conll', name)]
     srl_fns = [os.path.join(args.srl, name) for name in os.listdir(args.srl) if re.search(r'conll', name)]
-
+    parse_fns.sort()
+    srl_fns.sort()
+    
     ct = CoNLLTools()
 
     for i, parse_fn in enumerate(parse_fns):
         srl_fn = srl_fns[i]
+        print (parse_fn, srl_fn)
         output_name = re.findall(r'split/(.*)_parsed', parse_fn)[-1]
         output_name += '_converted.xml'
-        print output_name
-        output_path = os.path.join(args.out, output_name)
-        print output_path
+        output_fn = os.path.join(args.out, output_name)
+        # print (output_name)
+        # print (output_path)
 
         print 'reading ...'
         parse_data = ct.gzip_reader(parse_fn)
@@ -459,7 +464,7 @@ if __name__ == '__main__':
         srl_dfs = ct.extract_dataframe(srl_data)
 
         print 'extracting information...'
-        ct.extract_info(parse_dfs, srl_dfs, output_path)
+        ct.extract_info(parse_dfs, srl_dfs, output_fn)
 
         # debug
         # print srl_df[0].shape
