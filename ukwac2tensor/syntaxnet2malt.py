@@ -281,43 +281,53 @@ def syntaxnet2malt(file):
 
     print 'constructing new sentences ...'
     new_data = []
+    imgId = 0
     for sentence in df:
         # sentence = df[0]
         new_sent = ''
-        for line in sentence:
-            # line = sentence[0]
-            # print line
-            assert line[2] == '_'
-            idx = line[0]
-            token = line[1]
-            pos = line[4]
-            dep = line[6]
-            syntag = line[7].upper()
-            if not is_ascii(token):
-                token = '<UNKNOWN>'
-            lower_token = token.lower()
-            lemma = wnl.lemmatize(lower_token, ct.penn2wn(pos))
-            line[2] = lemma
+        if sentence.ndim == 1:
+            assert sentence[2] == '_'
+            imgId = sentence[1]
+            new_sent += '<text id="' + imgId + '" />\n'
+        else:
+            new_sent += '<s>\n'
+            for line in sentence:
+                # line = sentence[0]
+                # print line
+                assert line[2] == '_'
+                idx = line[0]
+                token = line[1]
+                pos = line[4]
+                dep = line[6]
+                syntag = line[7].upper()
+                if not is_ascii(token):
+                    token = '<UNKNOWN>'
+                lower_token = token.lower()
+                lemma = wnl.lemmatize(lower_token, ct.penn2wn(pos))
+                line[2] = lemma
 
-            new_list = []
-            new_list.append(token)
-            new_list.append(lemma)
-            new_list.append(pos)
-            new_list.append(idx)
-            new_list.append(dep)
-            new_list.append(syntag)
-            new_line = '\t'.join(new_list)
+                new_list = []
+                new_list.append(token)
+                new_list.append(lemma)
+                new_list.append(pos)
+                new_list.append(idx)
+                new_list.append(dep)
+                new_list.append(syntag)
+                new_line = '\t'.join(new_list)
 
-            new_sent += new_line + '\n'
+                new_sent += new_line + '\n'
+            new_sent += '</s>\n'
 
         # print new_sent
         new_data.append(new_sent)
+        # DEBUG block
+        # if len(new_data) > 50:
+        #     break
 
-    output_str = '<text>\n'
+    # output_str = '<text>\n'
+    output_str = ''
     for sent in new_data:
-        output_str += '<s>\n'
         output_str += sent
-        output_str += '</s>\n'
 
     # print output_str
     return output_str
