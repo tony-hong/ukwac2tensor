@@ -257,7 +257,7 @@ class CoNLLTools:
             new_list.append(idx)
             new_list.append(dep)
             new_list.append(syntag)
-            new_line = '\t'.join(new_list)
+            new_line = ' '.join(new_list)
 
             new_data += new_line + '\n'
         
@@ -344,7 +344,7 @@ class CoNLLTools:
 
             # construct text
             malt_text = self.df2malt(parse, lemmas)
-            sent_tuples = [(''.join([lemmas[i], "/", pos_tags[i], "/", idxs[i]]), srl[i, self.COL_2_PROPS:])
+            sent_tuples = [(''.join([lemmas[i], "/", pos_tags[i].upper(), "/", idxs[i]]), srl[i, self.COL_2_PROPS:])
                     for i in range(num_tokens)]
             lemmas_sent = ' '.join([i[0].rsplit('/', 2)[0] for i in sent_tuples]).lower()
             raw_sent = ' '.join(tokens)
@@ -353,12 +353,12 @@ class CoNLLTools:
 
             root_e = et.Element("s")
             malt_e = et.SubElement(root_e, "malt")
-            lemmsent_e = et.SubElement(root_e, "lemsent")
             rawsent_e = et.SubElement(root_e, "rawsent")
+            lemmsent_e = et.SubElement(root_e, "lemsent")
 
             malt_e.text = malt_text
-            lemmsent_e.text = lemmas_sent
             rawsent_e.text = raw_sent
+            lemmsent_e.text = lemmas_sent
 
             # equal
 
@@ -379,9 +379,13 @@ class CoNLLTools:
 
                 # print prd_lemma, '/', pos_tags[prd_idx], '/', prd_idx
 
-                gov_e.text = ''.join([prd_lemma, '/', pos_tags[prd_idx], '/', str(prd_idx)])
+                gov_e.text = ''.join([prd_lemma, '/', pos_tags[prd_idx].upper(), '/', str(prd_idx)])
 
                 dep_dic = self.get_dependants(sent_tuples, prd_col - self.COL_2_PROPS)
+
+                dep_e = et.SubElement(deps_e, "dep")
+                dep_e.set("type", "V")
+                dep_e.text = gov_e.text
 
                 for d in dep_dic:
                     # print d
