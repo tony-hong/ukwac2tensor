@@ -678,8 +678,14 @@ def map_to_malt_indexes(lemsent, maltdata):
         # STARTFROM = int(lemsent_last[1])
         itmalt = iter(malt_lst)
         break_line = ' '.join(result[next(reversed(result))])
-        STARTFROM = malt_lst.index([next(itmalt) for e in itmalt
-                                    if str(break_line) in e][0])
+        # quick hack to see if it works
+        tmp_list = [next(itmalt) for e in itmalt if str(break_line) in e]
+        if len(tmp_list) == 0:
+            idx = 0
+        else:
+            idx = tmp_list[0]
+        # 
+        STARTFROM = malt_lst.index(idx)
         PREV_MALT = maltdata
     return result
 
