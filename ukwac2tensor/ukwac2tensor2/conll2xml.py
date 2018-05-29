@@ -228,13 +228,13 @@ class CoNLLTools:
         return dataframe
 
 
-    def df2malt(self, df):
-        new_data = ''
+    def df2malt(self, df, lemmas):
+        new_data = '\n'
         imgId = 0
         sent_cnt = 0
         isFirst = True
 
-        for line in df:
+        for i, line in enumerate(df):
             # line = sentence[0]
             # print line
             assert line[2] == '_'
@@ -247,11 +247,12 @@ class CoNLLTools:
                 token = '<UNKNOWN>'
             lower_token = token.lower()
             # lemma = wnl.lemmatize(lower_token, self.penn2wn(pos))
+            lemma = lemmas[i]
             line[2] = '_'
 
             new_list = []
             new_list.append(token)
-            new_list.append('_')
+            # new_list.append('_')
             new_list.append(pos)
             new_list.append(idx)
             new_list.append(dep)
@@ -342,21 +343,22 @@ class CoNLLTools:
             # print num_props, len(prd_list)
 
             # construct text
-            malt_text = self.df2malt(parse)
+            malt_text = self.df2malt(parse, lemmas)
             sent_tuples = [(''.join([lemmas[i], "/", pos_tags[i], "/", idxs[i]]), srl[i, self.COL_2_PROPS:])
                     for i in range(num_tokens)]
             lemmas_sent = ' '.join([i[0].rsplit('/', 2)[0] for i in sent_tuples]).lower()
-            # raw_sent = ' '.join(tokens)
+            raw_sent = ' '.join(tokens)
             # print sent_tuples
             # print raw_sent
 
             root_e = et.Element("s")
             malt_e = et.SubElement(root_e, "malt")
             lemmsent_e = et.SubElement(root_e, "lemsent")
-            # rawsent_e = et.SubElement(root_e, "rawsent")
+            rawsent_e = et.SubElement(root_e, "rawsent")
 
             malt_e.text = malt_text
             lemmsent_e.text = lemmas_sent
+            rawsent_e.text = raw_sent
 
             # equal
 
