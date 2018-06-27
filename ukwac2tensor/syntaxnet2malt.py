@@ -285,17 +285,17 @@ def syntaxnet2malt(file):
     sent_cnt = 0
     isFirst = True
     for sentence in df:
+        sent_cnt += 1
         # sentence = df[0]
         new_sent = ''
         if sentence.ndim == 1:
             assert sentence[2] == '_'
             imgId = sentence[1]
-            sent_cnt += 1
             if not isFirst:
                 new_sent += '</text>\n'
             else: 
                 isFirst = False
-            new_sent += '<text id="' + imgId + '">\n'
+            new_sent += '<text id="' + imgId + '" >\n'
         else:
             new_sent += '<s>\n'
             for line in sentence:
@@ -310,7 +310,8 @@ def syntaxnet2malt(file):
                 if not is_ascii(token):
                     token = '<UNKNOWN>'
                 lower_token = token.lower()
-                lemma = wnl.lemmatize(lower_token, ct.penn2wn(pos))
+                lemma = lower_token
+                # lemma = wnl.lemmatize(lower_token, ct.penn2wn(pos))
                 line[2] = lemma
 
                 new_list = []
