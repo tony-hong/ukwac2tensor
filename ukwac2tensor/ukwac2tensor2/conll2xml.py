@@ -379,7 +379,7 @@ class CoNLLTools:
 
                 # print prd_lemma, '/', pos_tags[prd_idx], '/', prd_idx
 
-                gov_e.text = ''.join([prd_lemma, '/', pos_tags[prd_idx].upper(), '/', str(prd_idx)])
+                gov_e.text = ''.join([prd_lemma, '/', pos_tags[prd_idx].upper(), '/', idxs[prd_idx]])
 
                 dep_dic = self.get_dependants(sent_tuples, prd_col - self.COL_2_PROPS)
 
